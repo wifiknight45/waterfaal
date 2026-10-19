@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
- Multi-Mode Sound Propagation Analyzer  (v2)
+// Multi-Mode Sound Propagation Analyzer  (v3)
 
 Real-time scrolling spectrogram (waterfall) + live spectrum with peak hold.
 
@@ -100,23 +100,36 @@ class WaterfallApp(QtWidgets.QMainWindow):
         self.setStyleSheet(
             "QMainWindow, QWidget { background: #111; color: #ddd; }"
             "QLabel { color: #ccc; }"
+            "QToolBar { background: #111; border: none; spacing: 4px; }"
             "QPushButton { background: #222; border: 1px solid #444; padding: 4px 10px; }"
             "QPushButton:checked { background: #006655; border-color: #00FFCC; }"
             "QComboBox { background: #222; border: 1px solid #444; padding: 2px 6px; }"
         )
 
-        central = QtWidgets.QWidget()
-        self.setCentralWidget(central)
-        root = QtWidgets.QVBoxLayout(central)
+        # The plot widget is the window's central widget; all controls live in toolbars.
+        self.graphics_layout = pg.GraphicsLayoutWidget()
+        self.graphics_layout.setBackground('#0a0a0a')
+        self.setCentralWidget(self.graphics_layout)
+
+        tb_info = self.addToolBar("Readout")
+        self.addToolBarBreak()
+        tb1 = self.addToolBar("Input")
+        self.addToolBarBreak()
+        tb2 = self.addToolBar("Display")
+        for tb in (tb_info, tb1, tb2):
+            tb.setMovable(False)
+            tb.setFloatable(False)
 
         # Readout header
         self.info_label = QtWidgets.QLabel("Starting…")
-        self.info_label.setFont(QtGui.QFont("Monospace", 10, QtGui.QFont.Bold))
+        font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
+        font.setBold(True)
+        self.info_label.setFont(font)
         self.info_label.setStyleSheet("color: #00FFCC; background: #000; padding: 8px;")
-        root.addWidget(self.info_label)
+        self.info_label.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
+        tb_info.addWidget(self.info_label)
 
         # Control rows
-        row1 = QtWidgets.QHBoxLayout()
         self.device_combo = QtWidgets.QComboBox()
         self.sr_combo = QtWidgets.QComboBox()
         self.fft_combo = QtWidgets.QComboBox()
@@ -134,22 +147,21 @@ class WaterfallApp(QtWidgets.QMainWindow):
         for label, w in (("Input", self.device_combo), ("Rate", self.sr_combo),
                          ("FFT", self.fft_combo), ("Palette", self.palette_combo),
                          ("Mode", self.mode_combo)):
-            row1.addWidget(QtWidgets.QLabel(label))
-            row1.addWidget(w)
-        row1.addStretch(1)
-        root.addLayout(row1)
+            tb1.addWidget(QtWidgets.QLabel(f" {label} "))
+            tb1.addWidget(w)
 
-        row2 = QtWidgets.QHBoxLayout()
         self.floor_slider = self.make_slider(-140, -30, -80)
         self.ceil_slider = self.make_slider(-80, 0, -30)
         self.floor_val = QtWidgets.QLabel()
         self.ceil_val = QtWidgets.QLabel()
-        row2.addWidget(QtWidgets.QLabel("Floor"))
-        row2.addWidget(self.floor_slider, 1)
-        row2.addWidget(self.floor_val)
-        row2.addWidget(QtWidgets.QLabel("Ceiling"))
-        row2.addWidget(self.ceil_slider, 1)
-        row2.addWidget(self.ceil_val)
+        for s_ in (self.floor_slider, self.ceil_slider):
+            s_.setMinimumWidth(160)
+        for label, w in (("Floor", self.floor_slider), ("", self.floor_val),
+                         ("Ceiling", self.ceil_slider), ("", self.ceil_val)):
+            if label:
+                tb2.addWidget(QtWidgets.QLabel(f" {label} "))
+            tb2.addWidget(w)
+        tb2.addSeparator()
 
         self.pause_btn = self.make_button("⏸ Pause", checkable=True)
         self.rec_btn = self.make_button("● Record", checkable=True)
@@ -157,14 +169,9 @@ class WaterfallApp(QtWidgets.QMainWindow):
         self.snap_btn = self.make_button("Snapshot")
         self.band_btn = self.make_button("Bird band", checkable=True)
         for b in (self.pause_btn, self.rec_btn, self.learn_btn, self.snap_btn, self.band_btn):
-            row2.addWidget(b)
-        root.addLayout(row2)
+            tb2.addWidget(b)
 
         # Plots
-        self.graphics_layout = pg.GraphicsLayoutWidget()
-        self.graphics_layout.setBackground('#0a0a0a')
-        root.addWidget(self.graphics_layout, 1)
-
         self.plot_item = self.graphics_layout.addPlot(row=0, col=0)
         self.plot_item.setLabel('left', 'Time ago', units='s')
         self.plot_item.setLabel('bottom', 'Frequency', units='Hz')
@@ -180,7 +187,7 @@ class WaterfallApp(QtWidgets.QMainWindow):
         self.band_region.setVisible(False)
         self.plot_item.addItem(self.band_region, ignoreBounds=True)
 
-        self.vline_wf = pg.InfiniteLine(angle=90, pen=pg.mkPen('#ffffff55', width=1))
+        self.vline_wf = pg.InfiniteLine(angle=90, pen=pg.mkPen((255, 255, 255, 90), width=1))
         self.plot_item.addItem(self.vline_wf, ignoreBounds=True)
 
         self.spec_plot = self.graphics_layout.addPlot(row=1, col=0)
@@ -196,7 +203,7 @@ class WaterfallApp(QtWidgets.QMainWindow):
                                               fillLevel=-120, brush=(0, 255, 204, 40))
         self.peak_line = pg.InfiniteLine(angle=90, pen=pg.mkPen('#ffd500', style=QtCore.Qt.DashLine))
         self.spec_plot.addItem(self.peak_line, ignoreBounds=True)
-        self.vline_sp = pg.InfiniteLine(angle=90, pen=pg.mkPen('#ffffff55', width=1))
+        self.vline_sp = pg.InfiniteLine(angle=90, pen=pg.mkPen((255, 255, 255, 90), width=1))
         self.spec_plot.addItem(self.vline_sp, ignoreBounds=True)
         self.graphics_layout.ci.layout.setRowStretchFactor(0, 3)
         self.graphics_layout.ci.layout.setRowStretchFactor(1, 1)
@@ -280,7 +287,7 @@ class WaterfallApp(QtWidgets.QMainWindow):
         if self.recording:
             self.rec_btn.setChecked(False)         # finalize WAV at the old sample rate
 
-        self.sr = self.sr_combo.currentData()
+        self.sr = self.resolve_sample_rate()
         self.fft_size = n = self.fft_combo.currentData()
         self.hop = max(1, int(n * (1 - OVERLAP)))
         self.window = windows.hann(n, sym=False).astype(np.float32)
@@ -309,6 +316,29 @@ class WaterfallApp(QtWidgets.QMainWindow):
 
         self.start_stream()
         self.dirty = True
+
+    def resolve_sample_rate(self):
+        """Use the requested rate if the device accepts it, else fall back to the device default."""
+        want = self.sr_combo.currentData()
+        dev = self.device_combo.currentData()
+        try:
+            sd.check_input_settings(device=dev, samplerate=want, channels=1)
+            return want
+        except Exception:
+            pass
+        try:
+            default = int(sd.query_devices(dev, 'input')['default_samplerate'])
+            sd.check_input_settings(device=dev, samplerate=default, channels=1)
+        except Exception:
+            return want                      # let start_stream report the real error
+        nearest = min(SAMPLE_RATES, key=lambda r: abs(r - default))
+        if nearest != default:
+            return want
+        self.sr_combo.blockSignals(True)
+        self.sr_combo.setCurrentIndex(self.sr_combo.findData(nearest))
+        self.sr_combo.blockSignals(False)
+        self.statusBar().showMessage(f"{want} Hz not supported by this input — using {nearest} Hz", 6000)
+        return nearest
 
     def start_stream(self):
         try:
@@ -524,6 +554,12 @@ class WaterfallApp(QtWidgets.QMainWindow):
         self.stop_stream()
         event.accept()
 
+
+if __name__ == '__main__':
+    app = QtWidgets.QApplication(sys.argv)
+    window = WaterfallApp()
+    window.show()
+    sys.exit(app.exec_())
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
