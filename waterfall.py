@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-// Multi-Mode Sound Propagation Analyzer  (v3)
+wifiknight45 // Multi-Mode Sound Propagation Analyzer  (v4)
 
 Real-time scrolling spectrogram (waterfall) + live spectrum with peak hold.
 
@@ -19,7 +19,12 @@ import sounddevice as sd
 from scipy.io import wavfile
 from scipy.signal import windows
 import pyqtgraph as pg
-from PyQt5 import QtCore, QtGui, QtWidgets
+# Use pyqtgraph's own Qt binding so widgets always match (PyQt5/PyQt6/PySide2/PySide6).
+from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
+
+# QShortcut lives in QtWidgets on Qt5 but in QtGui on Qt6
+QShortcut = getattr(QtGui, 'QShortcut', None) or QtWidgets.QShortcut
+Qt = QtCore.Qt
 
 # --- Configuration ---------------------------------------------------------
 SAMPLE_RATES = [16000, 22050, 44100, 48000]
@@ -122,11 +127,11 @@ class WaterfallApp(QtWidgets.QMainWindow):
 
         # Readout header
         self.info_label = QtWidgets.QLabel("Starting…")
-        font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
+        font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
         font.setBold(True)
         self.info_label.setFont(font)
         self.info_label.setStyleSheet("color: #00FFCC; background: #000; padding: 8px;")
-        self.info_label.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
+        self.info_label.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
         tb_info.addWidget(self.info_label)
 
         # Control rows
@@ -201,7 +206,7 @@ class WaterfallApp(QtWidgets.QMainWindow):
         self.peak_curve = self.spec_plot.plot(pen=pg.mkPen('#ff5555', width=1))
         self.spec_curve = self.spec_plot.plot(pen=pg.mkPen('#00FFCC', width=1.5),
                                               fillLevel=-120, brush=(0, 255, 204, 40))
-        self.peak_line = pg.InfiniteLine(angle=90, pen=pg.mkPen('#ffd500', style=QtCore.Qt.DashLine))
+        self.peak_line = pg.InfiniteLine(angle=90, pen=pg.mkPen('#ffd500', style=Qt.PenStyle.DashLine))
         self.spec_plot.addItem(self.peak_line, ignoreBounds=True)
         self.vline_sp = pg.InfiniteLine(angle=90, pen=pg.mkPen((255, 255, 255, 90), width=1))
         self.spec_plot.addItem(self.vline_sp, ignoreBounds=True)
@@ -224,7 +229,7 @@ class WaterfallApp(QtWidgets.QMainWindow):
         for w in (self.device_combo, self.sr_combo, self.fft_combo, self.palette_combo,
                   self.mode_combo, self.pause_btn, self.rec_btn, self.learn_btn,
                   self.snap_btn, self.band_btn):
-            w.setFocusPolicy(QtCore.Qt.NoFocus)   # keep Space/letters for shortcuts
+            w.setFocusPolicy(Qt.FocusPolicy.NoFocus)   # keep Space/letters for shortcuts
 
         self.device_combo.currentIndexChanged.connect(self.setup_engine)
         self.sr_combo.currentIndexChanged.connect(self.setup_engine)
@@ -240,7 +245,7 @@ class WaterfallApp(QtWidgets.QMainWindow):
         self.band_btn.toggled.connect(self.band_region.setVisible)
 
     def make_slider(self, lo, hi, val):
-        s = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        s = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         s.setRange(lo, hi)
         s.setValue(val)
         return s
@@ -252,7 +257,7 @@ class WaterfallApp(QtWidgets.QMainWindow):
 
     def build_shortcuts(self):
         def sc(key, fn):
-            QtWidgets.QShortcut(QtGui.QKeySequence(key), self).activated.connect(fn)
+            QShortcut(QtGui.QKeySequence(key), self).activated.connect(fn)
         sc('Space', self.pause_btn.toggle)
         sc('C', lambda: self.cycle(self.palette_combo))
         sc('M', lambda: self.cycle(self.mode_combo))
@@ -559,10 +564,4 @@ if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     window = WaterfallApp()
     window.show()
-    sys.exit(app.exec_())
-
-if __name__ == '__main__':
-    app = QtWidgets.QApplication(sys.argv)
-    window = WaterfallApp()
-    window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
